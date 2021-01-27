@@ -1,0 +1,1326 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "ETL Pipelines with Prefect\n",
+    "==========================\n",
+    "\n",
+    "[Prefect](https://github.com/PrefectHQ/prefect) is a platform for automating data workflows.  Data engineers and data scientists can build, test and deploy production pipelines without worrying about all of the [\"negative engineering\" aspects](https://medium.com/the-prefect-blog/positive-and-negative-data-engineering-a02cb497583d) of production.  For example, Prefect makes it easy to deploy a workflow that runs on a complicated schedule, requires task retries in the event of failures, and sends notifications when certain tasks are complete.  Prefect was built on top of Dask, and [relies on Dask](http://stories.dask.org/en/latest/prefect-workflows.html#how-dask-helps) to schedule and manage the execution of a Prefect workflow in a distributed environment.\n",
+    "\n",
+    "This example demonstrates running a Prefect ETL Flow on Dask which ultimately creates a GIF.  While this is a somewhat unconventional use case of Prefect, we're no strangers to [unconventional use cases](https://medium.com/the-prefect-blog/prefect-runs-on-prefect-3e6df553c3a4).\n",
+    "\n",
+    "In the world of workflow engines, Prefect supports many unique features; in this particular example we will see:\n",
+    "\n",
+    "- parametrization of workflows\n",
+    "- dynamic runtime \"mapping\" of workflow tasks\n",
+    "- customizable execution logic\n",
+    "\n",
+    "You wouldn't get this from any other engine.\n",
+    "\n",
+    "**Contents**\n",
+    "\n",
+    "0. [Description of goal](#Goal)\n",
+    "1. [Setting up our environment](#Setting-up-our-environment)\n",
+    "2. Building our Flow\n",
+    "    1. [Extract](#Extract)\n",
+    "    1. [Transform](#Transform)\n",
+    "    1. [Load](#Load)\n",
+    "    1. [Putting the pieces together](#Build-the-Flow)\n",
+    "3. [Running our Flow on Dask](#Running-our-Flow-on-Dask)\n",
+    "4. [Watching our GIF](#Play)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "[Goal](#Goal)\n",
+    "----\n",
+    "\n",
+    "To demonstrate how Prefect and Dask work together, we are going to build and execute a standard \"Extract / Transform / Load\" (ETL) workflow for processing some basic image data.  Most ETL workflows involve a scheduled migration of data from one database to another.  In our case, we will be moving data from a file located at a known URL to our local hard disk, converting the individual file into a series of frames, and compiling those frames into a GIF.  The URL references a file containing raw bytes such as:\n",
+    "\n",
+    "```python\n",
+    "b\"\"\"aÙ\u0001w\u0001˜\u0000\u0000≠•∆≠≠ﬁ#!\b\u0015\u0016\u0003≠≠÷≠•Ω≠úΩ••µú•µîúµ•úΩ••Ω3&\u0015µ•Ω\u0018!\u000b",
+    "µ≠∆≠•¥4(%µú∑≠≠Œ≠î≠≠≠∆≠îµúî≠úîµE5.≠ú≠≠•Œµµﬁ••∆•≠ŒµµŒúúΩ62&)1&623µ•∆Ωµ÷úî•ßjxΩΩÁú•Ωµ≠Œ••≠ú•≠Ω≠∆≠µÁâUV≠µ‹ΩµŒîî•NC5µ≠Ÿôãô•î•µ•µîú≠#\u0017\bVHCuhl≠≠ΩôchâRIoc]™≠Á≠î•™ú»öis•ú•f7,íYfL9?îî≠≠•÷∑ò™gWVxGEΩ≠–))1qB5µ≠Ω81\u0018R,\u0015´tÜñWV\u001e",
+    "!\u001e",
+    "HCDBB5;5?\"\"\"\n",
+    "```\n",
+    "\n",
+    "The steps of our workflow will be as follows:\n",
+    "- Extract: pull the data file from a URL (speicified by a `Parameter`) to disk\n",
+    "- Transform: split the file into multiple files, each corresponding to a single frame\n",
+    "- Load: Store each frame individually, and compile the frames together into a GIF\n",
+    "\n",
+    "Once we have built our Flow, we can execute it with different values for the `Parameter` or even run it on a nightly schedule.\n",
+    "\n",
+    "**NOTE:** If we planned on executing this Flow in a truly distributed environment, writing the images to the local filesystem would _not_ be appropriate.  We would instead use an external datastore such as Google Cloud Storage, or a proper database."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "[Setting up our environment](#Setting-up-our-environment)\n",
+    "--------------------------\n",
+    "\n",
+    "Before proceeding, we need to install both the [`prefect`](https://pypi.org/project/prefect/) and [`imageio`](https://pypi.org/project/imageio/) packages."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:09.263075Z",
+     "iopub.status.busy": "2021-01-27T16:15:09.262550Z",
+     "iopub.status.idle": "2021-01-27T16:15:14.117224Z",
+     "shell.execute_reply": "2021-01-27T16:15:14.115759Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting imageio\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  Downloading imageio-2.9.0-py3-none-any.whl (3.3 MB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |                                | 10 kB 35.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |▏                               | 20 kB 22.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |▎                               | 30 kB 16.1 MB/s eta 0:00:01"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\r",
+      "\u001b[K     |▍                               | 40 kB 6.8 MB/s eta 0:00:01\r",
+      "\u001b[K     |▌                               | 51 kB 8.3 MB/s eta 0:00:01\r",
+      "\u001b[K     |▋                               | 61 kB 7.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |▊                               | 71 kB 9.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |▉                               | 81 kB 9.3 MB/s eta 0:00:01\r",
+      "\u001b[K     |█                               | 92 kB 10.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█                               | 102 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█                               | 112 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▏                              | 122 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▎                              | 133 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▍                              | 143 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▌                              | 153 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▋                              | 163 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▊                              | 174 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▉                              | 184 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▉                              | 194 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██                              | 204 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██                              | 215 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▏                             | 225 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▎                             | 235 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▍                             | 245 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▌                             | 256 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▋                             | 266 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▊                             | 276 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▊                             | 286 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▉                             | 296 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███                             | 307 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███                             | 317 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▏                            | 327 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▎                            | 337 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▍                            | 348 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▌                            | 358 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▋                            | 368 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▋                            | 378 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▊                            | 389 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▉                            | 399 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████                            | 409 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████                            | 419 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▏                           | 430 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▎                           | 440 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▍                           | 450 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▌                           | 460 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▋                           | 471 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▋                           | 481 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▊                           | 491 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▉                           | 501 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████                           | 512 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████                           | 522 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▏                          | 532 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▎                          | 542 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▍                          | 552 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▌                          | 563 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▌                          | 573 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▋                          | 583 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▊                          | 593 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▉                          | 604 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████                          | 614 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████                          | 624 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▏                         | 634 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▎                         | 645 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▍                         | 655 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▍                         | 665 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▌                         | 675 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▋                         | 686 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▊                         | 696 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▉                         | 706 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████                         | 716 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████                         | 727 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▏                        | 737 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▎                        | 747 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▎                        | 757 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▍                        | 768 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▌                        | 778 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▋                        | 788 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▊                        | 798 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▉                        | 808 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████                        | 819 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████                        | 829 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▏                       | 839 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▏                       | 849 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▎                       | 860 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▍                       | 870 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▌                       | 880 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▋                       | 890 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▊                       | 901 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▉                       | 911 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████                       | 921 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████                       | 931 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▏                      | 942 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▏                      | 952 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▎                      | 962 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▍                      | 972 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▌                      | 983 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▋                      | 993 kB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▊                      | 1.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▉                      | 1.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████                      | 1.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████                      | 1.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████                      | 1.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▏                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▎                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▍                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▌                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▋                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▊                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▉                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████                     | 1.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▏                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▎                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▍                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▌                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▋                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▊                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▉                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▉                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████                    | 1.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▏                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▎                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▍                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▌                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▋                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▊                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▉                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▉                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████                   | 1.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████                   | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▏                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▎                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▍                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▌                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▋                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▊                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▊                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▉                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████                  | 1.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████                  | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▏                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▎                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▍                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▌                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▋                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▋                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▊                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▉                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████                 | 1.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████                 | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▏                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▎                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▍                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▌                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▌                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▋                | 1.6 MB 8.2 MB/s eta 0:00:01"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\r",
+      "\u001b[K     |███████████████▊                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▉                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████                | 1.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████                | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▏               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▎               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▍               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▍               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▌               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▋               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▊               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▉               | 1.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████               | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████               | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▏              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▎              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▍              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▍              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▌              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▋              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▊              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▉              | 1.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████              | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████              | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▏             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▎             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▎             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▍             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▌             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▋             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▊             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▉             | 1.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████             | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████             | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▏            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▏            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▎            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▍            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▌            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▋            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▊            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▉            | 2.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████            | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████            | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████            | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▏           | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▎           | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▍           | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▌           | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▋           | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▊           | 2.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▉           | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████           | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████           | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████           | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▏          | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▎          | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▍          | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▌          | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▋          | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▊          | 2.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▉          | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████          | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████          | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████          | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▏         | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▎         | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▍         | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▌         | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▋         | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▊         | 2.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▉         | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▉         | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████         | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████         | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▏        | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▎        | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▍        | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▌        | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▋        | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▊        | 2.4 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▊        | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▉        | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████        | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████        | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▏       | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▎       | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▍       | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▌       | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▋       | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▋       | 2.5 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▊       | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▉       | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████       | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████       | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▏      | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▎      | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▍      | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▌      | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▋      | 2.6 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▋      | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▊      | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▉      | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████      | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████      | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▏     | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▎     | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▍     | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▌     | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▌     | 2.7 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▋     | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▊     | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▉     | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████     | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████     | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▏    | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▎    | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▍    | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▍    | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▌    | 2.8 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▋    | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▊    | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▉    | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████    | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████    | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▏   | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▎   | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▎   | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▍   | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▌   | 2.9 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▋   | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▊   | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▉   | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████   | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████   | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▏  | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▏  | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▎  | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▍  | 3.0 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▌  | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▋  | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▊  | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▉  | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████  | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████  | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▏ | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▏ | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▎ | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▍ | 3.1 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▌ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▋ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▊ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▉ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████ | 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▏| 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▎| 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▍| 3.2 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▌| 3.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▋| 3.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▊| 3.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▉| 3.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 3.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 3.3 MB 8.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 3.3 MB 8.2 MB/s \r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\u001b[?25hCollecting prefect[viz]\r\n",
+      "  Downloading prefect-0.14.5-py3-none-any.whl (480 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |▊                               | 10 kB 27.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▍                              | 20 kB 34.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |██                              | 30 kB 39.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▊                             | 40 kB 42.1 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▍                            | 51 kB 44.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |████                            | 61 kB 46.3 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▊                           | 71 kB 48.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▌                          | 81 kB 49.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▏                         | 92 kB 52.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▉                         | 102 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▌                        | 112 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▏                       | 122 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▉                       | 133 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▌                      | 143 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▏                     | 153 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████                     | 163 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▋                    | 174 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▎                   | 184 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████                   | 194 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▋                  | 204 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▎                 | 215 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████                 | 225 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▊                | 235 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▍               | 245 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████               | 256 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▊              | 266 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▍             | 276 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████             | 286 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▊            | 296 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▍           | 307 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▏          | 317 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▉          | 327 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▌         | 337 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▏        | 348 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▉        | 358 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▌       | 368 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▏      | 378 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████      | 389 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▋     | 399 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▎    | 409 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████    | 419 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▋   | 430 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▎  | 440 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████  | 450 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▋ | 460 kB 52.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▍| 471 kB 52.5 MB/s eta 0:00:01"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\r",
+      "\u001b[K     |████████████████████████████████| 480 kB 52.5 MB/s \r\n",
+      "\u001b[?25hRequirement already satisfied: pillow in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from imageio) (8.1.0)\r\n",
+      "Requirement already satisfied: numpy in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from imageio) (1.18.5)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting croniter<1.0,>=0.3.24\r\n",
+      "  Downloading croniter-0.3.37-py2.py3-none-any.whl (13 kB)\r\n",
+      "Requirement already satisfied: pytz>=2018.7 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (2020.5)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting marshmallow>=3.0.0b19\r\n",
+      "  Downloading marshmallow-3.10.0-py2.py3-none-any.whl (46 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |███████                         | 10 kB 44.1 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▏                 | 20 kB 48.3 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▏          | 30 kB 54.1 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▎   | 40 kB 61.0 MB/s eta 0:00:01"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\r",
+      "\u001b[K     |████████████████████████████████| 46 kB 7.1 MB/s \r\n",
+      "\u001b[?25hRequirement already satisfied: python-dateutil>=2.7.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (2.8.1)\r\n",
+      "Requirement already satisfied: urllib3>=1.24.3 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (1.26.3)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting pendulum>=2.0.4\r\n",
+      "  Downloading pendulum-2.1.2-cp38-cp38-manylinux1_x86_64.whl (155 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |██                              | 10 kB 31.8 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▏                           | 20 kB 41.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▎                         | 30 kB 46.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▍                       | 40 kB 50.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▌                     | 51 kB 56.1 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▋                   | 61 kB 58.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▊                 | 71 kB 61.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▉               | 81 kB 65.8 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████             | 92 kB 66.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████           | 102 kB 67.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▏        | 112 kB 67.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▎      | 122 kB 67.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▍    | 133 kB 67.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▌  | 143 kB 67.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▋| 153 kB 67.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 155 kB 67.2 MB/s \r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\u001b[?25hCollecting importlib-resources>=3.0.0\r\n",
+      "  Downloading importlib_resources-5.1.0-py3-none-any.whl (24 kB)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting docker>=3.4.1\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  Downloading docker-4.4.1-py2.py3-none-any.whl (146 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |██▎                             | 10 kB 26.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▌                           | 20 kB 35.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▊                         | 30 kB 41.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████                       | 40 kB 46.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▏                    | 51 kB 51.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▍                  | 61 kB 54.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▋                | 71 kB 56.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▉              | 81 kB 60.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████            | 92 kB 60.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▎         | 102 kB 61.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▌       | 112 kB 61.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▉     | 122 kB 61.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████   | 133 kB 61.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▎| 143 kB 61.0 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 146 kB 61.0 MB/s \r\n",
+      "\u001b[?25hCollecting python-box>=5.1.0\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  Downloading python_box-5.2.0-py3-none-any.whl (20 kB)\r\n",
+      "Requirement already satisfied: toml>=0.9.4 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (0.10.2)\r\n",
+      "Requirement already satisfied: pyyaml>=3.13 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (5.4.1)\r\n",
+      "Requirement already satisfied: cloudpickle>=1.3.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (1.6.0)\r\n",
+      "Requirement already satisfied: distributed>=2.17.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (2.30.1)\r\n",
+      "Requirement already satisfied: requests>=2.20 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (2.25.1)\r\n",
+      "Collecting python-slugify>=1.2.6\r\n",
+      "  Downloading python-slugify-4.0.1.tar.gz (11 kB)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Requirement already satisfied: click>=7.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (7.1.2)\r\n",
+      "Requirement already satisfied: dask>=2.17.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (2.20.0)\r\n",
+      "Requirement already satisfied: msgpack>=0.6.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (1.0.2)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting marshmallow-oneofschema>=2.0.0b2\r\n",
+      "  Downloading marshmallow_oneofschema-2.1.0-py2.py3-none-any.whl (5.7 kB)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting tabulate>=0.8.0\r\n",
+      "  Downloading tabulate-0.8.7-py3-none-any.whl (24 kB)\r\n",
+      "Collecting mypy-extensions>=0.4.0\r\n",
+      "  Downloading mypy_extensions-0.4.3-py2.py3-none-any.whl (4.5 kB)\r\n",
+      "Requirement already satisfied: graphviz>=0.8.3 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from prefect[viz]) (0.16)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting natsort\r\n",
+      "  Downloading natsort-7.1.1-py3-none-any.whl (35 kB)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Requirement already satisfied: zict>=0.1.3 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (2.0.0)\r\n",
+      "Requirement already satisfied: toolz>=0.8.2 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (0.11.1)\r\n",
+      "Requirement already satisfied: tornado>=6.0.3 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (6.1)\r\n",
+      "Requirement already satisfied: sortedcontainers!=2.0.0,!=2.0.1 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (2.3.0)\r\n",
+      "Requirement already satisfied: tblib>=1.6.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (1.6.0)\r\n",
+      "Requirement already satisfied: setuptools in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (49.6.0.post20210108)\r\n",
+      "Requirement already satisfied: psutil>=5.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from distributed>=2.17.0->prefect[viz]) (5.8.0)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting websocket-client>=0.32.0\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  Downloading websocket_client-0.57.0-py2.py3-none-any.whl (200 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |█▋                              | 10 kB 23.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▎                            | 20 kB 32.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████                           | 30 kB 40.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▌                         | 40 kB 44.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▏                       | 51 kB 49.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▉                      | 61 kB 53.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▍                    | 71 kB 55.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████                   | 81 kB 60.1 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▊                 | 92 kB 61.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▎               | 102 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████              | 112 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▋            | 122 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▏          | 133 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▉         | 143 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▌       | 153 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████      | 163 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▊    | 174 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▍  | 184 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████ | 194 kB 64.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 200 kB 64.4 MB/s \r\n",
+      "\u001b[?25hRequirement already satisfied: six>=1.4.0 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from docker>=3.4.1->prefect[viz]) (1.15.0)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Collecting pytzdata>=2020.1\r\n",
+      "  Downloading pytzdata-2020.1-py2.py3-none-any.whl (489 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |▊                               | 10 kB 22.6 MB/s eta 0:00:01\r",
+      "\u001b[K     |█▍                              | 20 kB 27.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |██                              | 30 kB 35.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |██▊                             | 40 kB 38.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |███▍                            | 51 kB 41.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████                            | 61 kB 41.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |████▊                           | 71 kB 42.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████▍                          | 81 kB 44.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████                          | 92 kB 44.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████▊                         | 102 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████▍                        | 112 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████                        | 122 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▊                       | 133 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████▍                      | 143 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████                      | 153 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████▊                     | 163 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████▍                    | 174 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████                    | 184 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▊                   | 194 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████▍                  | 204 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████                  | 215 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████▊                 | 225 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████▍                | 235 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████                | 245 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▊               | 256 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████▍              | 266 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████              | 276 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████▊             | 286 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████▍            | 296 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████            | 307 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████▊           | 317 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████▍          | 327 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████          | 337 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████▊         | 348 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████▍        | 358 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████        | 368 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████▊       | 378 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▍      | 389 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████      | 399 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████▊     | 409 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████▍    | 419 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████    | 430 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████▊   | 440 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▍  | 450 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████  | 460 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |██████████████████████████████▊ | 471 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |███████████████████████████████▍| 481 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 489 kB 46.9 MB/s \r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\u001b[?25hCollecting text-unidecode>=1.3\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  Downloading text_unidecode-1.3-py2.py3-none-any.whl (78 kB)\r\n",
+      "\u001b[?25l\r",
+      "\u001b[K     |████▏                           | 10 kB 25.4 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████▍                       | 20 kB 32.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████▋                   | 30 kB 39.5 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████▊               | 40 kB 46.9 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████           | 51 kB 50.2 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████▏      | 61 kB 53.3 MB/s eta 0:00:01\r",
+      "\u001b[K     |█████████████████████████████▍  | 71 kB 57.7 MB/s eta 0:00:01\r",
+      "\u001b[K     |████████████████████████████████| 78 kB 19.4 MB/s \r\n",
+      "\u001b[?25hRequirement already satisfied: certifi>=2017.4.17 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from requests>=2.20->prefect[viz]) (2020.12.5)\r\n",
+      "Requirement already satisfied: idna<3,>=2.5 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from requests>=2.20->prefect[viz]) (2.10)\r\n",
+      "Requirement already satisfied: chardet<5,>=3.0.2 in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from requests>=2.20->prefect[viz]) (3.0.4)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Requirement already satisfied: heapdict in /usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages (from zict>=0.1.3->distributed>=2.17.0->prefect[viz]) (1.0.1)\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Building wheels for collected packages: python-slugify\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  Building wheel for python-slugify (setup.py) ... \u001b[?25l-"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\b \bdone\r\n",
+      "\u001b[?25h  Created wheel for python-slugify: filename=python_slugify-4.0.1-py2.py3-none-any.whl size=6769 sha256=99512b5c1ba8e079edbd5f08b83f58336dd10ba5672e01a9153493d893a40756\r\n",
+      "  Stored in directory: /home/runner/.cache/pip/wheels/91/4d/4f/e740a68c215791688c46c4d6251770a570e8dfea91af1acb5c\r\n",
+      "Successfully built python-slugify\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Installing collected packages: websocket-client, text-unidecode, pytzdata, natsort, marshmallow, tabulate, python-slugify, python-box, pendulum, mypy-extensions, marshmallow-oneofschema, importlib-resources, docker, croniter, prefect, imageio\r\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Successfully installed croniter-0.3.37 docker-4.4.1 imageio-2.9.0 importlib-resources-5.1.0 marshmallow-3.10.0 marshmallow-oneofschema-2.1.0 mypy-extensions-0.4.3 natsort-7.1.1 pendulum-2.1.2 prefect-0.14.5 python-box-5.2.0 python-slugify-4.0.1 pytzdata-2020.1 tabulate-0.8.7 text-unidecode-1.3 websocket-client-0.57.0\r\n"
+     ]
+    }
+   ],
+   "source": [
+    "!pip install imageio prefect[viz]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### [Extract](#Extract)\n",
+    "\n",
+    "First, we will define our tasks for _extracting_ the image data file from a given URL and saving it to a given file location.  To do so, we will utilize two methods for creating Prefect Tasks:\n",
+    "- the `task` decorator for converting any Python function into a task\n",
+    "- a pre-written, configurable Task from the [Prefect \"Task Library\"](https://docs.prefect.io/guide/task_library/) which helps us abstract some standard boilerplate\n",
+    "\n",
+    "Additionally, we will utilize the following Prefect concepts:\n",
+    "- a [Prefect signal](https://docs.prefect.io/guide/core_concepts/execution.html#state-signals) for marking this task and its downstream depedencies as successfully \"Skipped\" if the file is already present in our local filesystem\n",
+    "- retry semantics: if, for whatever reason, our `curl` command fails to connect, we want it to retry up to 2 times with a 10 second delay.  This way, if we run this workflow on a schedule we won't need to concern ourselves with temporary intermittent connection issues.\n",
+    "\n",
+    "Right now we are simply defining our individual tasks - we won't actually set up our dependency structure until we create the full Flow."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:14.121307Z",
+     "iopub.status.busy": "2021-01-27T16:15:14.120307Z",
+     "iopub.status.idle": "2021-01-27T16:15:14.620793Z",
+     "shell.execute_reply": "2021-01-27T16:15:14.621564Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "import datetime\n",
+    "import os\n",
+    "\n",
+    "import prefect\n",
+    "from prefect import task\n",
+    "from prefect.engine.signals import SKIP\n",
+    "from prefect.tasks.shell import ShellTask\n",
+    "\n",
+    "\n",
+    "@task\n",
+    "def curl_cmd(url: str, fname: str) -> str:\n",
+    "    \"\"\"\n",
+    "    The curl command we wish to execute.\n",
+    "    \"\"\"\n",
+    "    if os.path.exists(fname):\n",
+    "        raise SKIP(\"Image data file already exists.\")\n",
+    "    return \"curl -fL -o {fname} {url}\".format(fname=fname, url=url)\n",
+    "\n",
+    "\n",
+    "# ShellTask is a task from the Task library which will execute a given command in a subprocess\n",
+    "# and fail if the command returns a non-zero exit code\n",
+    "\n",
+    "download = ShellTask(name=\"curl_task\", max_retries=2, retry_delay=datetime.timedelta(seconds=10))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### [Transform](#Transform)\n",
+    "\n",
+    "Next up, we need to define our task which loads the image data file and splits it into multiple frames.  In this case, each frame is delimited by 4 newlines.  Note that, in the event the previous two tasks are \"Skipped\", the default behavior in Prefect is to skip downstream dependencies as well.  However, as with most things in Prefect, this behavior is customizable.  In this case, we want this task to run regardless of whether the upstreams skipped or not, so we set the `skip_on_upstream_skip` flag to `False`."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:14.624683Z",
+     "iopub.status.busy": "2021-01-27T16:15:14.623701Z",
+     "iopub.status.idle": "2021-01-27T16:15:14.628750Z",
+     "shell.execute_reply": "2021-01-27T16:15:14.629381Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "@task(skip_on_upstream_skip=False)\n",
+    "def load_and_split(fname: str) -> list:\n",
+    "    \"\"\"\n",
+    "    Loads image data file at `fname` and splits it into\n",
+    "    multiple frames.  Returns a list of bytes, one element\n",
+    "    for each frame.\n",
+    "    \"\"\"\n",
+    "    with open(fname, \"rb\") as f:\n",
+    "        images = f.read()\n",
+    "        \n",
+    "    return [img for img in images.split(b\"\\n\" * 4) if img]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### [Load](#Load)\n",
+    "\n",
+    "Finally, we want to write our frames to disk as well as combine the frames into a single GIF.  In order to achieve this goal, we are going to utilize [Prefect's task \"mapping\" feature](https://docs.prefect.io/guide/core_concepts/mapping.html) which conveniently spawns new tasks in response to upstream outputs.  In this case, we will write a single task for writing an image to disk, and \"map\" this task over all the image frames returned by `load_and_split` above!  To infer which frame we are on, we look in [`prefect.context`](https://docs.prefect.io/guide/core_concepts/execution.html#context).\n",
+    "\n",
+    "Additionally, we can \"reduce\" over a mapped task - in this case, we will take the collection of mapped tasks and pass them into our `combine_to_gif` task for creating and saving our GIF."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:14.632064Z",
+     "iopub.status.busy": "2021-01-27T16:15:14.631140Z",
+     "iopub.status.idle": "2021-01-27T16:15:14.635297Z",
+     "shell.execute_reply": "2021-01-27T16:15:14.635838Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "@task\n",
+    "def write_to_disk(image: bytes) -> bytes:\n",
+    "    \"\"\"\n",
+    "    Given a single image represented as bytes, writes the image\n",
+    "    to the present working directory with a filename determined\n",
+    "    by `map_index`.  Returns the image bytes.\n",
+    "    \"\"\"\n",
+    "    frame_no = prefect.context.get(\"map_index\")\n",
+    "    with open(\"frame_{0:0=2d}.gif\".format(frame_no), \"wb\") as f:\n",
+    "        f.write(image)\n",
+    "    return image"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:14.638662Z",
+     "iopub.status.busy": "2021-01-27T16:15:14.637719Z",
+     "iopub.status.idle": "2021-01-27T16:15:14.653491Z",
+     "shell.execute_reply": "2021-01-27T16:15:14.654191Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "import imageio\n",
+    "from io import BytesIO\n",
+    "\n",
+    "\n",
+    "@task\n",
+    "def combine_to_gif(image_bytes: list) -> None:\n",
+    "    \"\"\"\n",
+    "    Given a list of ordered images represented as bytes,\n",
+    "    combines them into a single GIF stored in the present working directory.\n",
+    "    \"\"\"\n",
+    "    images = [imageio.imread(BytesIO(image)) for image in image_bytes]\n",
+    "    imageio.mimsave('./clip.gif', images)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "[Build the Flow](#Build-the-Flow)\n",
+    "---------------\n",
+    "\n",
+    "Finally, we need to put our tasks together into a Prefect \"Flow\".  Similar to Dask's `delayed` interface, all computation is deferred and no Task code will be executed in this step.  Because Prefect maintains a stricter contract between tasks and additionally needs the ability to run in non-Dask execution environments, the mechanism for deferring execution is independent of Dask.\n",
+    "\n",
+    "In addition to the tasks we have already defined, we introduce two \"Parameters\" for specifying the URL and local file location of our data.  At runtime, we can optionally override these tasks to return different values."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:14.657191Z",
+     "iopub.status.busy": "2021-01-27T16:15:14.656228Z",
+     "iopub.status.idle": "2021-01-27T16:15:14.694296Z",
+     "shell.execute_reply": "2021-01-27T16:15:14.694970Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/svg+xml": [
+       "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n",
+       "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"\n",
+       " \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n",
+       "<!-- Generated by graphviz version 2.42.3 (20191010.1750)\n",
+       " -->\n",
+       "<!-- Title: %3 Pages: 1 -->\n",
+       "<svg width=\"293pt\" height=\"465pt\"\n",
+       " viewBox=\"0.00 0.00 292.54 465.00\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n",
+       "<g id=\"graph0\" class=\"graph\" transform=\"scale(1 1) rotate(0) translate(4 461)\">\n",
+       "<title>%3</title>\n",
+       "<polygon fill=\"white\" stroke=\"transparent\" points=\"-4,4 -4,-461 288.54,-461 288.54,4 -4,4\"/>\n",
+       "<!-- 140714724453248 -->\n",
+       "<g id=\"node1\" class=\"node\">\n",
+       "<title>140714724453248</title>\n",
+       "<ellipse fill=\"none\" stroke=\"black\" cx=\"156.5\" cy=\"-265\" rx=\"53.89\" ry=\"18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"156.5\" y=\"-261.3\" font-family=\"Times,serif\" font-size=\"14.00\">curl_task</text>\n",
+       "</g>\n",
+       "<!-- 140714724453776 -->\n",
+       "<g id=\"node6\" class=\"node\">\n",
+       "<title>140714724453776</title>\n",
+       "<ellipse fill=\"none\" stroke=\"black\" cx=\"86.5\" cy=\"-192\" rx=\"77.19\" ry=\"18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"86.5\" y=\"-188.3\" font-family=\"Times,serif\" font-size=\"14.00\">load_and_split</text>\n",
+       "</g>\n",
+       "<!-- 140714724453248&#45;&gt;140714724453776 -->\n",
+       "<g id=\"edge3\" class=\"edge\">\n",
+       "<title>140714724453248&#45;&gt;140714724453776</title>\n",
+       "<path fill=\"none\" stroke=\"black\" d=\"M140.26,-247.53C131.38,-238.52 120.21,-227.19 110.35,-217.19\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"112.65,-214.53 103.13,-209.87 107.66,-219.45 112.65,-214.53\"/>\n",
+       "</g>\n",
+       "<!-- 140714724454208 -->\n",
+       "<g id=\"node2\" class=\"node\">\n",
+       "<title>140714724454208</title>\n",
+       "<polygon fill=\"none\" stroke=\"black\" points=\"173,-123 0,-123 0,-87 173,-87 173,-123\"/>\n",
+       "<text text-anchor=\"middle\" x=\"86.5\" y=\"-101.3\" font-family=\"Times,serif\" font-size=\"14.00\">write_to_disk &lt;map&gt;</text>\n",
+       "</g>\n",
+       "<!-- 140714724499616 -->\n",
+       "<g id=\"node3\" class=\"node\">\n",
+       "<title>140714724499616</title>\n",
+       "<ellipse fill=\"none\" stroke=\"black\" cx=\"86.5\" cy=\"-18\" rx=\"81.49\" ry=\"18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"86.5\" y=\"-14.3\" font-family=\"Times,serif\" font-size=\"14.00\">combine_to_gif</text>\n",
+       "</g>\n",
+       "<!-- 140714724454208&#45;&gt;140714724499616 -->\n",
+       "<g id=\"edge2\" class=\"edge\">\n",
+       "<title>140714724454208&#45;&gt;140714724499616</title>\n",
+       "<path fill=\"none\" stroke=\"black\" d=\"M86.5,-86.8C86.5,-75.16 86.5,-59.55 86.5,-46.24\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"90,-46.18 86.5,-36.18 83,-46.18 90,-46.18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"132\" y=\"-57.8\" font-family=\"Times,serif\" font-size=\"14.00\">image_bytes</text>\n",
+       "</g>\n",
+       "<!-- 140714724453200 -->\n",
+       "<g id=\"node4\" class=\"node\">\n",
+       "<title>140714724453200</title>\n",
+       "<ellipse fill=\"none\" stroke=\"black\" cx=\"156.5\" cy=\"-352\" rx=\"53.89\" ry=\"18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"156.5\" y=\"-348.3\" font-family=\"Times,serif\" font-size=\"14.00\">curl_cmd</text>\n",
+       "</g>\n",
+       "<!-- 140714724453200&#45;&gt;140714724453248 -->\n",
+       "<g id=\"edge6\" class=\"edge\">\n",
+       "<title>140714724453200&#45;&gt;140714724453248</title>\n",
+       "<path fill=\"none\" stroke=\"black\" d=\"M156.5,-333.8C156.5,-322.16 156.5,-306.55 156.5,-293.24\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"160,-293.18 156.5,-283.18 153,-293.18 160,-293.18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"191.5\" y=\"-304.8\" font-family=\"Times,serif\" font-size=\"14.00\">command</text>\n",
+       "</g>\n",
+       "<!-- 140714724452144 -->\n",
+       "<g id=\"node5\" class=\"node\">\n",
+       "<title>140714724452144</title>\n",
+       "<ellipse fill=\"none\" stroke=\"black\" cx=\"74.5\" cy=\"-439\" rx=\"65.79\" ry=\"18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"74.5\" y=\"-435.3\" font-family=\"Times,serif\" font-size=\"14.00\">DATA_FILE</text>\n",
+       "</g>\n",
+       "<!-- 140714724452144&#45;&gt;140714724453200 -->\n",
+       "<g id=\"edge7\" class=\"edge\">\n",
+       "<title>140714724452144&#45;&gt;140714724453200</title>\n",
+       "<path fill=\"none\" stroke=\"black\" d=\"M90.7,-421.21C102.91,-408.55 119.82,-391.03 133.44,-376.91\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"136.19,-379.1 140.61,-369.47 131.15,-374.24 136.19,-379.1\"/>\n",
+       "<text text-anchor=\"middle\" x=\"143\" y=\"-391.8\" font-family=\"Times,serif\" font-size=\"14.00\">fname</text>\n",
+       "</g>\n",
+       "<!-- 140714724452144&#45;&gt;140714724453776 -->\n",
+       "<g id=\"edge5\" class=\"edge\">\n",
+       "<title>140714724452144&#45;&gt;140714724453776</title>\n",
+       "<path fill=\"none\" stroke=\"black\" d=\"M75.34,-420.77C77.4,-378.86 82.66,-271.31 85.16,-220.44\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"88.66,-220.37 85.66,-210.21 81.67,-220.03 88.66,-220.37\"/>\n",
+       "<text text-anchor=\"middle\" x=\"104\" y=\"-304.8\" font-family=\"Times,serif\" font-size=\"14.00\">fname</text>\n",
+       "</g>\n",
+       "<!-- 140714724453776&#45;&gt;140714724454208 -->\n",
+       "<g id=\"edge4\" class=\"edge\">\n",
+       "<title>140714724453776&#45;&gt;140714724454208</title>\n",
+       "<path fill=\"none\" stroke=\"black\" stroke-dasharray=\"5,2\" d=\"M86.5,-173.8C86.5,-162.16 86.5,-146.55 86.5,-133.24\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"90,-133.18 86.5,-123.18 83,-133.18 90,-133.18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"108.5\" y=\"-144.8\" font-family=\"Times,serif\" font-size=\"14.00\">image</text>\n",
+       "</g>\n",
+       "<!-- 140714724452048 -->\n",
+       "<g id=\"node7\" class=\"node\">\n",
+       "<title>140714724452048</title>\n",
+       "<ellipse fill=\"none\" stroke=\"black\" cx=\"221.5\" cy=\"-439\" rx=\"63.09\" ry=\"18\"/>\n",
+       "<text text-anchor=\"middle\" x=\"221.5\" y=\"-435.3\" font-family=\"Times,serif\" font-size=\"14.00\">DATA_URL</text>\n",
+       "</g>\n",
+       "<!-- 140714724452048&#45;&gt;140714724453200 -->\n",
+       "<g id=\"edge1\" class=\"edge\">\n",
+       "<title>140714724452048&#45;&gt;140714724453200</title>\n",
+       "<path fill=\"none\" stroke=\"black\" d=\"M208.66,-421.21C199.22,-408.87 186.24,-391.89 175.59,-377.97\"/>\n",
+       "<polygon fill=\"black\" stroke=\"black\" points=\"178.17,-375.58 169.32,-369.76 172.61,-379.83 178.17,-375.58\"/>\n",
+       "<text text-anchor=\"middle\" x=\"204\" y=\"-391.8\" font-family=\"Times,serif\" font-size=\"14.00\">url</text>\n",
+       "</g>\n",
+       "</g>\n",
+       "</svg>\n"
+      ],
+      "text/plain": [
+       "<graphviz.dot.Digraph at 0x7ffab32b22b0>"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "from prefect import Parameter, Flow\n",
+    "\n",
+    "\n",
+    "DATA_URL = Parameter(\"DATA_URL\", \n",
+    "                     default=\"https://github.com/cicdw/image-data/blob/master/all-images.img?raw=true\")\n",
+    "\n",
+    "DATA_FILE = Parameter(\"DATA_FILE\", default=\"image-data.img\")\n",
+    "\n",
+    "\n",
+    "with Flow(\"Image ETL\") as flow:\n",
+    "    \n",
+    "    # Extract\n",
+    "    command = curl_cmd(DATA_URL, DATA_FILE)\n",
+    "    curl = download(command=command)\n",
+    "    \n",
+    "    # Transform\n",
+    "    # we use the `upstream_tasks` keyword to specify non-data dependencies\n",
+    "    images = load_and_split(fname=DATA_FILE, upstream_tasks=[curl])\n",
+    "    \n",
+    "    # Load  \n",
+    "    frames = write_to_disk.map(images)\n",
+    "    result = combine_to_gif(frames)\n",
+    "    \n",
+    "\n",
+    "flow.visualize()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### [Running the Flow on Dask](#Running-the-Flow-on-Dask)\n",
+    "\n",
+    "Now we have built our Flow, independently of Dask.  We could execute this Flow sequentially, Task after Task, but there is inherent parallelism in our mapping of the images to files that we want to exploit.  Luckily, Dask makes this easy to achieve.\n",
+    "\n",
+    "First, we will start a local Dask cluster.  Then, we will run our Flow against Prefect's `DaskExecutor`, which will submit each Task to our Dask cluster and use Dask's distributed scheduler for determining when and where each Task should run.  Essentially, we built a Directed Acylic Graph (DAG) and are simply \"submitting\" that DAG to Dask for handling its execution in a distributed way."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:14.698080Z",
+     "iopub.status.busy": "2021-01-27T16:15:14.697148Z",
+     "iopub.status.idle": "2021-01-27T16:15:20.380186Z",
+     "shell.execute_reply": "2021-01-27T16:15:20.380453Z"
+    },
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[2021-01-27 16:15:16+0000] INFO - prefect.FlowRunner | Beginning Flow run for 'Image ETL'\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "<ipython-input-7-2d65d26da62c>:11: UserWarning: prefect.engine.executors.DaskExecutor has been moved to `prefect.executors.DaskExecutor`, please update your imports\n",
+      "  executor = DaskExecutor(address=client.scheduler.address)\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/usr/share/miniconda3/envs/dask-examples/lib/python3.8/site-packages/distributed/worker.py:3373: UserWarning: Large object of size 2.03 MB detected in task graph: \n",
+      "  {'task': <Task: write_to_disk>, 'state': None, 'up ... _parent': True}\n",
+      "Consider scattering large objects ahead of time\n",
+      "with client.scatter to reduce scheduler burden and \n",
+      "keep data on workers\n",
+      "\n",
+      "    future = client.submit(func, big_data)    # bad\n",
+      "\n",
+      "    big_future = client.scatter(big_data)     # good\n",
+      "    future = client.submit(func, big_future)  # good\n",
+      "  warnings.warn(\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[2021-01-27 16:15:20+0000] INFO - prefect.FlowRunner | Flow run SUCCESS: all reference tasks succeeded\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "<Success: \"All reference tasks succeeded.\">"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# start our Dask cluster\n",
+    "from dask.distributed import Client\n",
+    "\n",
+    "\n",
+    "client = Client(n_workers=4, threads_per_worker=1)\n",
+    "\n",
+    "# point Prefect's DaskExecutor to our Dask cluster\n",
+    "\n",
+    "from prefect.engine.executors import DaskExecutor\n",
+    "\n",
+    "executor = DaskExecutor(address=client.scheduler.address)\n",
+    "flow.run(executor=executor)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "[Next Steps](#Next-Steps)\n",
+    "----------\n",
+    "\n",
+    "Now that we've built our workflow, what next?  The interested reader should try to:\n",
+    "\n",
+    "- run the Flow again to see how the `SKIP` signal behaves\n",
+    "- use different parameters for both the URL and the file location (Parameter values can be overriden by simply passing their names as keyword arguments to `flow.run()`)\n",
+    "- introduce a new Parameter for the filename of the final GIF\n",
+    "- use Prefect's [scheduler interface](https://docs.prefect.io/guide/core_concepts/schedules.html) to run our workflow on a schedule"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "[Play](#Play)\n",
+    "----\n",
+    "\n",
+    "Finally, let's watch our creation!"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2021-01-27T16:15:20.384302Z",
+     "iopub.status.busy": "2021-01-27T16:15:20.383753Z",
+     "iopub.status.idle": "2021-01-27T16:15:20.388729Z",
+     "shell.execute_reply": "2021-01-27T16:15:20.389417Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<img src=\"./clip.gif\" alt=\"Rick Daskley\">"
+      ],
+      "text/plain": [
+       "<IPython.core.display.HTML object>"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "from IPython.display import HTML\n",
+    "\n",
+    "HTML('<img src=\"./clip.gif\" alt=\"Rick Daskley\">')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.6"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}

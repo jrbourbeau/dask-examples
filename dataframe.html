@@ -1,111 +1,141 @@
 
 
 <!DOCTYPE html>
-<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
   <title>Dask DataFrames &mdash; Dask Examples  documentation</title>
   
 
   
-  
-  
-  
-
-  
-
-  
-  
-    
-
-  
-
   <link rel="stylesheet" href="_static/css/style.css" type="text/css" />
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="_static/css/explore.css" type="text/css" />
   <link rel="stylesheet" href="_static/css/nbsphinx.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
+        <script src="_static/js/custom.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Custom Workloads with Dask Delayed" href="delayed.html" />
-    <link rel="prev" title="Dask Arrays" href="array.html" /> 
-
+    <link rel="prev" title="Dask Bags" href="bag.html" />
+  <link rel="shortcut icon" href="_static/images/favicon.ico"/>
   
-  <script src="_static/js/modernizr.min.js"></script>
+  <meta name="Description" content="Dask DataFrames">
+  <meta property="og:description" content="Dask DataFrames">
+  <meta name="twitter:description" content="Dask DataFrames" />
+  <meta property="og:title" content="Dask Examples  documentation - Dask DataFrames">
+  <meta property="og:image" content="https://github.com/dask.png">
+  <meta property="og:image:secure_url" content="https://github.com/dask.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="380" />
+  <meta property="og:image:height" content="380" />
+  <meta property="og:url" content="dataframe.html">
+  <meta property="og:site_name" content="Dask Examples  documentation">
+
+  <meta name="twitter:site" content="https://dask.org" />
+  <meta name="twitter:creator" content="@dask_dev" />
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:image" content="https://github.com/dask.png" />
+  <meta name="twitter:image:alt" content="Dask Examples  documentation">
+  
 
 </head>
 
 <body class="wy-body-for-nav">
 
   
+    <nav id="explore-links">
+        <a href="https://docs.dask.org/">
+        <img class="caption" src="_static/images/dask-horizontal-white.svg"/>
+        </a>
 
-<nav id="explore-links">
-  <a href="https://docs.dask.org/">
-    <img class="caption" src="_static/images/dask-horizontal-white.svg"/>
-  </a>
+        <ul>
+        <li>
+            <a>Get Started</a>
+            <ul>
+            <li><a href="https://docs.dask.org/en/latest/install.html"> Install </a></li>
+            <li><a href="https://examples.dask.org"> Examples </a></li>
+            <li><a href="https://github.com/dask/dask-tutorial"> Tutorial </a></li>
+            <li><a href="https://docs.dask.org/en/latest/why.html"> Why Dask? </a></li>
+            <li><a href="https://stories.dask.org/en/latest"> Use Cases </a></li>
+            <li><a href="https://www.youtube.com/watch?v=RA_2qdipVng&list=PLRtz5iA93T4PQvWuoMnIyEIz1fXiJ5Pri"> Talks </a></li>
+            <li><a href="https://mybinder.org/v2/gh/dask/dask-examples/master?urlpath=lab"> Try Online </a></li>
+            <li><a href="https://dask.org/slides"> Slides </a></li>
+            </ul>
+        </li>
 
-  <ul>
-    <li>
-      <a>Get Started</a>
-      <ul>
-        <li><a href="https://docs.dask.org/en/latest/install.html"> Install </a></li>
-        <li><a href="https://examples.dask.org"> Examples </a></li>
-        <li><a href="https://github.com/dask/dask-tutorial"> Tutorial </a></li>
-        <li><a href="https://docs.dask.org/en/latest/why.html"> Why Dask? </a></li>
-        <li><a href="https://stories.dask.org/en/latest"> Use Cases </a></li>
-        <li><a href="https://www.youtube.com/watch?v=RA_2qdipVng&list=PLRtz5iA93T4PQvWuoMnIyEIz1fXiJ5Pri"> Talks </a></li>
-        <li><a href="https://mybinder.org/v2/gh/dask/dask-examples/master?urlpath=lab"> Try Online </a></li>
-      </ul>
-    </li>
+        <li>
+            <a href="">Algorithms</a>
+            <ul>
+            <li><a href="https://docs.dask.org/en/latest/array.html">Arrays</a></li>
+            <li><a href="https://docs.dask.org/en/latest/dataframe.html">Dataframes</a></li>
+            <li><a href="https://docs.dask.org/en/latest/bag.html">Bags</a></li>
+            <li><a href="https://docs.dask.org/en/latest/delayed.html">Delayed (custom)</a></li>
+            <li><a href="https://docs.dask.org/en/latest/futures.html">Futures (real-time)</a></li>
+            <li><a href="http://ml.dask.org">Machine Learning</a></li>
+            <li><a href="https://xarray.pydata.org/en/latest/">XArray</a></li>
+            </ul>
+        </li>
 
-    <li>
-      <a href="">Algorithms</a>
-      <ul>
-        <li><a href="https://docs.dask.org/en/latest/array.html">Arrays</a></li>
-        <li><a href="https://docs.dask.org/en/latest/dataframe.html">Dataframes</a></li>
-        <li><a href="https://docs.dask.org/en/latest/bag.html">Bags</a></li>
-        <li><a href="https://docs.dask.org/en/latest/delayed.html">Delayed (custom)</a></li>
-        <li><a href="https://docs.dask.org/en/latest/futures.html">Futures (real-time)</a></li>
-        <li><a href="http://ml.dask.org">Machine Learning</a></li>
-        <li><a href="https://xarray.pydata.org/en/latest/">XArray</a></li>
-      </ul>
-    </li>
+        <li>
+            <a href="https://docs.dask.org/en/latest/setup.html">Setup</a>
+            <ul>
+            <li><a href="https://docs.dask.org/en/latest/setup/single-machine.html"> Local </a></li>
+            <li><a href="https://docs.dask.org/en/latest/setup/cloud.html"> Cloud </a></li>
+            <li><a href="https://docs.dask.org/en/latest/setup/hpc.html"> HPC </a></li>
+            <li><a href="https://kubernetes.dask.org/en/latest/"> Kubernetes </a></li>
+            <li><a href="https://yarn.dask.org/en/latest/"> Hadoop / Yarn </a></li>
+            </ul>
+        </li>
 
-    <li>
-      <a href="https://docs.dask.org/en/latest/setup.html">Deploy</a>
-      <ul>
-        <li><a href="https://yarn.dask.org/en/latest/"> Hadoop / Yarn </a></li>
-        <li><a href="https://docs.dask.org/en/latest/setup/kubernetes-helm.html"> Helm </a></li>
-        <li><a href="https://docs.dask.org/en/latest/setup/hpc.html"> HPC </a></li>
-        <li><a href="https://kubernetes.dask.org/en/latest/"> Kubernetes </a></li>
-        <li><a href="https://docs.dask.org/en/latest/setup/single-machine.html"> Local </a></li>
-      </ul>
-    </li>
+        <li>
+            <a>Community</a>
+            <ul>
+            <li><a href="http://docs.dask.org/en/latest/support.html">Ask for Help</a></li>
+            <li><a href="https://github.com/dask">Github</a></li>
+            <li><a href="https://stackoverflow.com/questions/tagged/dask">Stack Overflow</a></li>
+            <li><a href="https://twitter.com/dask_dev">Twitter</a></li>
+            <li><a href="https://blog.dask.org/"> Developer Blog </a></li>
+            <li><a href="https://youtube.com/c/dask-dev"> YouTube Channel </a></li>
+            </ul>
+        </li>
+        </ul>
 
-    <li>
-      <a>Community</a>
-      <ul>
-        <li><a href="http://docs.dask.org/en/latest/support.html">Ask for Help</a></li>
-        <li><a href="https://github.com/dask">Github</a></li>
-        <li><a href="https://stackoverflow.com/questions/tagged/dask">Stack Overflow</a></li>
-        <li><a href="https://twitter.com/dask_dev">Twitter</a></li>
-        <li><a href="https://blog.dask.org/"> Developer Blog </a></li>
-      </ul>
-    </li>
-  </ul>
-
-</nav>
-
-
+    </nav>
+  
   <div class="wy-grid-for-nav">
-
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search">
+        <div class="wy-side-nav-search" >
           
 
           
@@ -132,6 +162,7 @@
           
         </div>
 
+        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -139,9 +170,10 @@
               
             
             
-              <p class="caption"><span class="caption-text">Basic Examples:</span></p>
+              <p class="caption"><span class="caption-text">Basic Examples</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="array.html">Dask Arrays</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bag.html">Dask Bags</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Dask DataFrames</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#Start-Dask-Client-for-Dashboard">Start Dask Client for Dashboard</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#Create-Random-Dataframe">Create Random Dataframe</a></li>
@@ -150,35 +182,58 @@
 <li class="toctree-l2"><a class="reference internal" href="#Time-Series-Operations">Time Series Operations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#Set-Index">Set Index</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#Groupby-Apply-with-Scikit-Learn">Groupby Apply with Scikit-Learn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#Further-Reading">Further Reading</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="delayed.html">Custom Workloads with Dask Delayed</a></li>
 <li class="toctree-l1"><a class="reference internal" href="futures.html">Custom Workloads with Futures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning.html">Dask for Machine Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="xarray.html">Xarray with Dask Arrays</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Dataframes:</span></p>
+<p class="caption"><span class="caption-text">Dataframes</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="dataframes/01-data-access.html">DataFrames: Read and Write Data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dataframes/02-groupby.html">DataFrames: Groupby</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Machine Learning:</span></p>
+<p class="caption"><span class="caption-text">Machine Learning</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="machine-learning/blockwise-ensemble.html">Blockwise Ensemble Methods</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/scale-scikit-learn.html">Scale Scikit-Learn for Small Data Problems</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/parallel-prediction.html">Score and Predict Large Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="machine-learning/torch-prediction.html">Batch Prediction with PyTorch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/training-on-large-datasets.html">Train Models on Large Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/incremental.html">Incrementally Train Large Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="machine-learning/text-vectorization.html">Text Vectorization Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="machine-learning/hyperparam-opt.html">Hyperparameter optimization with Dask</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/xgboost.html">Scale XGBoost</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/voting-classifier.html">Use Voting Classifiers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="machine-learning/tpot.html">Automate Machine Learning with TPOT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="machine-learning/glm.html">Generalized Linear Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="machine-learning/svd.html">Singular Value Decomposition</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Applications:</span></p>
+<p class="caption"><span class="caption-text">Applications</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="embarrassingly-parallel.html">Embarrassingly parallel Workloads</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/json-data-on-the-web.html">Analyze web-hosted JSON data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/async-await.html">Async/Await and Non-Blocking Execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/async-web-server.html">Asynchronous Computation: Web Servers + Dask</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/embarrassingly-parallel.html">Embarrassingly parallel Workloads</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/evolving-workflows.html">Handle Evolving Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/image-processing.html">Image Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/prefect-etl.html">ETL Pipelines with Prefect</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/satellite-imagery-geotiff.html">Reading and manipulating tiled GeoTIFF datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/stencils-with-numba.html">Stencil Computations with Numba</a></li>
+<li class="toctree-l1"><a class="reference internal" href="applications/forecasting-with-prophet.html">Time Series Forecasting</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Surveys</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="surveys/2019.html">2019 Dask User Survey Results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="surveys/2020.html">2020 Dask User Survey Results</a></li>
 </ul>
 
             
           
         </div>
+        
       </div>
     </nav>
 
@@ -213,18 +268,20 @@
 
 
 
+
+
 <div role="navigation" aria-label="breadcrumbs navigation">
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="index.html">Docs</a> &raquo;</li>
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
         
       <li>Dask DataFrames</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
-            
+          
             <a href="_sources/dataframe.ipynb.txt" rel="nofollow"> View page source</a>
           
         
@@ -243,31 +300,45 @@
 /* CSS for nbsphinx extension */
 
 /* remove conflicting styling from Sphinx themes */
-div.nbinput,
-div.nbinput div.prompt,
-div.nbinput div.input_area,
-div.nbinput div[class*=highlight],
-div.nbinput div[class*=highlight] pre,
-div.nboutput,
-div.nbinput div.prompt,
-div.nbinput div.output_area,
-div.nboutput div[class*=highlight],
-div.nboutput div[class*=highlight] pre {
-    background: none;
+div.nbinput.container div.prompt *,
+div.nboutput.container div.prompt *,
+div.nbinput.container div.input_area pre,
+div.nboutput.container div.output_area pre,
+div.nbinput.container div.input_area .highlight,
+div.nboutput.container div.output_area .highlight {
     border: none;
-    padding: 0 0;
+    padding: 0;
     margin: 0;
     box-shadow: none;
 }
 
+div.nbinput.container > div[class*=highlight],
+div.nboutput.container > div[class*=highlight] {
+    margin: 0;
+}
+
+div.nbinput.container div.prompt *,
+div.nboutput.container div.prompt * {
+    background: none;
+}
+
+div.nboutput.container div.output_area .highlight,
+div.nboutput.container div.output_area pre {
+    background: unset;
+}
+
+div.nboutput.container div.output_area div.highlight {
+    color: unset;  /* override Pygments text color */
+}
+
 /* avoid gaps between output lines */
-div.nboutput div[class*=highlight] pre {
+div.nboutput.container div[class*=highlight] pre {
     line-height: normal;
 }
 
 /* input/output containers */
-div.nbinput,
-div.nboutput {
+div.nbinput.container,
+div.nboutput.container {
     display: -webkit-flex;
     display: flex;
     align-items: flex-start;
@@ -275,92 +346,104 @@ div.nboutput {
     width: 100%;
 }
 @media (max-width: 540px) {
-    div.nbinput,
-    div.nboutput {
+    div.nbinput.container,
+    div.nboutput.container {
         flex-direction: column;
     }
 }
 
 /* input container */
-div.nbinput {
+div.nbinput.container {
     padding-top: 5px;
 }
 
 /* last container */
-div.nblast {
+div.nblast.container {
     padding-bottom: 5px;
 }
 
 /* input prompt */
-div.nbinput div.prompt pre {
-    color: #303F9F;
+div.nbinput.container div.prompt pre {
+    color: #307FC1;
 }
 
 /* output prompt */
-div.nboutput div.prompt pre {
-    color: #D84315;
+div.nboutput.container div.prompt pre {
+    color: #BF5B3D;
 }
 
 /* all prompts */
-div.nbinput div.prompt,
-div.nboutput div.prompt {
-    min-width: 9ex;
-    padding-top: 0.4em;
-    padding-right: 0.4em;
-    text-align: right;
-    flex: 0;
+div.nbinput.container div.prompt,
+div.nboutput.container div.prompt {
+    width: 4.5ex;
+    padding-top: 5px;
+    position: relative;
+    user-select: none;
 }
+
+div.nbinput.container div.prompt > div,
+div.nboutput.container div.prompt > div {
+    position: absolute;
+    right: 0;
+    margin-right: 0.3ex;
+}
+
 @media (max-width: 540px) {
-    div.nbinput div.prompt,
-    div.nboutput div.prompt {
+    div.nbinput.container div.prompt,
+    div.nboutput.container div.prompt {
+        width: unset;
         text-align: left;
         padding: 0.4em;
     }
-    div.nboutput div.prompt.empty {
+    div.nboutput.container div.prompt.empty {
         padding: 0;
+    }
+
+    div.nbinput.container div.prompt > div,
+    div.nboutput.container div.prompt > div {
+        position: unset;
     }
 }
 
 /* disable scrollbars on prompts */
-div.nbinput div.prompt pre,
-div.nboutput div.prompt pre {
+div.nbinput.container div.prompt pre,
+div.nboutput.container div.prompt pre {
     overflow: hidden;
 }
 
 /* input/output area */
-div.nbinput div.input_area,
-div.nboutput div.output_area {
-    padding: 0.4em;
+div.nbinput.container div.input_area,
+div.nboutput.container div.output_area {
     -webkit-flex: 1;
     flex: 1;
     overflow: auto;
 }
 @media (max-width: 540px) {
-    div.nbinput div.input_area,
-    div.nboutput div.output_area {
+    div.nbinput.container div.input_area,
+    div.nboutput.container div.output_area {
         width: 100%;
     }
 }
 
 /* input area */
-div.nbinput div.input_area {
-    border: 1px solid #cfcfcf;
+div.nbinput.container div.input_area {
+    border: 1px solid #e0e0e0;
     border-radius: 2px;
-    background: #f7f7f7;
+    /*background: #f5f5f5;*/
 }
 
 /* override MathJax center alignment in output cells */
-div.nboutput div[class*=MathJax] {
+div.nboutput.container div[class*=MathJax] {
     text-align: left !important;
 }
 
-/* override sphinx.ext.pngmath center alignment in output cells */
-div.nboutput div.math p {
+/* override sphinx.ext.imgmath center alignment in output cells */
+div.nboutput.container div.math p {
     text-align: left;
 }
 
 /* standard error */
-div.nboutput div.output_area.stderr {
+div.nboutput.container div.output_area.stderr {
     background: #fdd;
 }
 
@@ -403,51 +486,125 @@ div.nboutput div.output_area.stderr {
 
 .ansi-bold { font-weight: bold; }
 .ansi-underline { text-decoration: underline; }
+
+
+div.nbinput.container div.input_area div[class*=highlight] > pre,
+div.nboutput.container div.output_area div[class*=highlight] > pre,
+div.nboutput.container div.output_area div[class*=highlight].math,
+div.nboutput.container div.output_area.rendered_html,
+div.nboutput.container div.output_area > div.output_javascript,
+div.nboutput.container div.output_area:not(.rendered_html) > img{
+    padding: 5px;
+    margin: 0;
+}
+
+/* fix copybtn overflow problem in chromium (needed for 'sphinx_copybutton') */
+div.nbinput.container div.input_area > div[class^='highlight'],
+div.nboutput.container div.output_area > div[class^='highlight']{
+    overflow-y: hidden;
+}
+
+/* hide copybtn icon on prompts (needed for 'sphinx_copybutton') */
+.prompt a.copybtn {
+    display: none;
+}
+
+/* Some additional styling taken form the Jupyter notebook CSS */
+div.rendered_html table {
+  border: none;
+  border-collapse: collapse;
+  border-spacing: 0;
+  color: black;
+  font-size: 12px;
+  table-layout: fixed;
+}
+div.rendered_html thead {
+  border-bottom: 1px solid black;
+  vertical-align: bottom;
+}
+div.rendered_html tr,
+div.rendered_html th,
+div.rendered_html td {
+  text-align: right;
+  vertical-align: middle;
+  padding: 0.5em 0.5em;
+  line-height: normal;
+  white-space: normal;
+  max-width: none;
+  border: none;
+}
+div.rendered_html th {
+  font-weight: bold;
+}
+div.rendered_html tbody tr:nth-child(odd) {
+  background: #f5f5f5;
+}
+div.rendered_html tbody tr:hover {
+  background: rgba(66, 165, 245, 0.2);
+}
+
+/* CSS overrides for sphinx_rtd_theme */
+
+/* 24px margin */
+.nbinput.nblast.container,
+.nboutput.nblast.container {
+    margin-bottom: 19px;  /* padding has already 5px */
+}
+
+/* ... except between code cells! */
+.nblast.container + .nbinput.container {
+    margin-top: -19px;
+}
+
+.admonition > p:before {
+    margin-right: 4px;  /* make room for the exclamation icon */
+}
+
+/* Fix math alignment, see https://github.com/rtfd/sphinx_rtd_theme/pull/686 */
+.math {
+    text-align: unset;
+}
 </style>
+<div class="admonition-live-notebook admonition">
+<p class="admonition-title">Live Notebook</p>
 <p>You can run this notebook in a <a class="reference external" href="https://mybinder.org/v2/gh/dask/dask-examples/master?urlpath=lab/tree/dataframe.ipynb">live session</a> <a class="reference external" href="https://mybinder.org/v2/gh/dask/dask-examples/master?urlpath=lab/tree/dataframe.ipynb"><img alt="Binder" src="https://mybinder.org/badge.svg" /></a> or view it <a class="reference external" href="https://github.com/dask/dask-examples/blob/master/dataframe.ipynb">on Github</a>.</p>
+</div>
 <div class="section" id="Dask-DataFrames">
 <h1>Dask DataFrames<a class="headerlink" href="#Dask-DataFrames" title="Permalink to this headline">¶</a></h1>
-<p>Dask Dataframes coordinate many Pandas dataframes, partitioned along an
-index. They support a large subset of the Pandas API.</p>
+<p><img alt="Dask dataframes are blocked Pandas dataframes" class="no-scaled-link" src="_images/dask-dataframe.svg" width="20%" /></p>
+<p>Dask Dataframes coordinate many Pandas dataframes, partitioned along an index. They support a large subset of the Pandas API.</p>
 <div class="section" id="Start-Dask-Client-for-Dashboard">
 <h2>Start Dask Client for Dashboard<a class="headerlink" href="#Start-Dask-Client-for-Dashboard" title="Permalink to this headline">¶</a></h2>
-<p>Starting the Dask Client is optional. It will provide a dashboard which
-is useful to gain insight on the computation.</p>
-<p>The link to the dashboard will become visible when you create the client
-below. We recommend having it open on one side of your screen while
-using your notebook on the other side. This can take some effort to
-arrange your windows, but seeing them both at the same is very useful
-when learning.</p>
+<p>Starting the Dask Client is optional. It will provide a dashboard which is useful to gain insight on the computation.</p>
+<p>The link to the dashboard will become visible when you create the client below. We recommend having it open on one side of your screen while using your notebook on the other side. This can take some effort to arrange your windows, but seeing them both at the same is very useful when learning.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [1]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">dask.distributed</span> <span class="k">import</span> <span class="n">Client</span><span class="p">,</span> <span class="n">progress</span>
+<span></span><span class="kn">from</span> <span class="nn">dask.distributed</span> <span class="kn">import</span> <span class="n">Client</span><span class="p">,</span> <span class="n">progress</span>
 <span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="n">n_workers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">threads_per_worker</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">memory_limit</span><span class="o">=</span><span class="s1">&#39;1GB&#39;</span><span class="p">)</span>
 <span class="n">client</span>
 </pre></div>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[1]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <table style="border: 2px solid white;">
 <tr>
 <td style="vertical-align: top; border: 0px solid white">
-<h3>Client</h3>
-<ul>
-  <li><b>Scheduler: </b>tcp://127.0.0.1:43180
-  <li><b>Dashboard: </b><a href='http://127.0.0.1:8787/status' target='_blank'>http://127.0.0.1:8787/status</a>
+<h3 style="text-align: left;">Client</h3>
+<ul style="text-align: left; list-style: none; margin: 0; padding: 0;">
+  <li><b>Scheduler: </b>tcp://127.0.0.1:37823</li>
+  <li><b>Dashboard: </b><a href='http://127.0.0.1:8787/status' target='_blank'>http://127.0.0.1:8787/status</a></li>
 </ul>
 </td>
 <td style="vertical-align: top; border: 0px solid white">
-<h3>Cluster</h3>
-<ul>
+<h3 style="text-align: left;">Cluster</h3>
+<ul style="text-align: left; list-style:none; margin: 0; padding: 0;">
   <li><b>Workers: </b>2</li>
   <li><b>Cores: </b>4</li>
   <li><b>Memory: </b>2.00 GB</li>
@@ -461,17 +618,13 @@ when learning.</p>
 <h2>Create Random Dataframe<a class="headerlink" href="#Create-Random-Dataframe" title="Permalink to this headline">¶</a></h2>
 <p>We create a random timeseries of data with the following attributes:</p>
 <ol class="arabic simple">
-<li>It stores a record for every 10 seconds of the year 2000</li>
-<li>It splits that year by month, keeping every month as a separate
-Pandas dataframe</li>
-<li>Along with a datetime index it has columns for names, ids, and
-numeric values</li>
+<li><p>It stores a record for every 10 seconds of the year 2000</p></li>
+<li><p>It splits that year by month, keeping every month as a separate Pandas dataframe</p></li>
+<li><p>Along with a datetime index it has columns for names, ids, and numeric values</p></li>
 </ol>
-<p>This is a small dataset of about 240 MB. Increase the number of days or
-reduce the frequency to practice with a larger dataset.</p>
+<p>This is a small dataset of about 240 MB. Increase the number of days or reduce the frequency to practice with a larger dataset.</p>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [2]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -483,8 +636,7 @@ reduce the frequency to practice with a larger dataset.</p>
 </div>
 <p>Unlike Pandas, Dask DataFrames are lazy and so no data is printed here.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [3]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -493,11 +645,10 @@ reduce the frequency to practice with a larger dataset.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[3]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div><strong>Dask DataFrame Structure:</strong></div>
 <div>
 <style scoped>
@@ -573,8 +724,7 @@ reduce the frequency to practice with a larger dataset.</p>
 </div>
 <p>But the column names and dtypes are known.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [4]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -583,23 +733,21 @@ reduce the frequency to practice with a larger dataset.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[4]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
 </pre></div>
 </div>
-<div class="output_area highlight-none notranslate"><div class="highlight"><pre>
-<span></span>id        int64
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+id        int64
 name     object
 x       float64
 y       float64
 dtype: object
-</pre></div>
-</div>
+</pre></div></div>
 </div>
 <p>Some operations will automatically display the data.</p>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [5]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -610,8 +758,7 @@ dtype: object
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [6]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -620,11 +767,10 @@ dtype: object
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[6]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div>
 <style scoped>
     .dataframe tbody tr th:only-of-type {
@@ -659,24 +805,24 @@ dtype: object
   <tbody>
     <tr>
       <th>2000-01-01 00:00:00</th>
-      <td>971</td>
-      <td>Norbert</td>
-      <td>0.02</td>
-      <td>0.52</td>
+      <td>1022</td>
+      <td>Dan</td>
+      <td>0.69</td>
+      <td>-0.38</td>
     </tr>
     <tr>
       <th>2000-01-01 00:00:01</th>
-      <td>971</td>
-      <td>Norbert</td>
-      <td>0.78</td>
-      <td>0.51</td>
+      <td>980</td>
+      <td>Zelda</td>
+      <td>0.27</td>
+      <td>0.16</td>
     </tr>
     <tr>
       <th>2000-01-01 00:00:02</th>
-      <td>994</td>
-      <td>Yvonne</td>
-      <td>-0.72</td>
-      <td>-0.46</td>
+      <td>981</td>
+      <td>Wendy</td>
+      <td>-0.68</td>
+      <td>-0.44</td>
     </tr>
   </tbody>
 </table>
@@ -687,8 +833,7 @@ dtype: object
 <h2>Use Standard Pandas Operations<a class="headerlink" href="#Use-Standard-Pandas-Operations" title="Permalink to this headline">¶</a></h2>
 <p>Most common Pandas operations operate identically on Dask dataframes</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [7]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -699,26 +844,23 @@ dtype: object
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[7]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
 </pre></div>
 </div>
-<div class="output_area highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Dask Series Structure:
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Dask Series Structure:
 npartitions=1
     float64
         ...
 Name: x, dtype: float64
 Dask Name: sqrt, 157 tasks
-</pre></div>
-</div>
+</pre></div></div>
 </div>
 <p>Call <code class="docutils literal notranslate"><span class="pre">.compute()</span></code> when you want your result as a Pandas dataframe.</p>
-<p>If you started <code class="docutils literal notranslate"><span class="pre">Client()</span></code> above then you may want to watch the status
-page during computation.</p>
+<p>If you started <code class="docutils literal notranslate"><span class="pre">Client()</span></code> above then you may want to watch the status page during computation.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [8]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -728,18 +870,16 @@ page during computation.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[8]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
 </pre></div>
 </div>
-<div class="output_area highlight-none notranslate"><div class="highlight"><pre>
-<span></span>pandas.core.series.Series
-</pre></div>
-</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+pandas.core.series.Series
+</pre></div></div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [9]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -748,12 +888,12 @@ page during computation.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[9]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
 </pre></div>
 </div>
-<div class="output_area highlight-none notranslate"><div class="highlight"><pre>
-<span></span>name
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+name
 Alice      0.58
 Bob        0.58
 Charlie    0.58
@@ -763,21 +903,18 @@ Edith      0.58
 Victor     0.58
 Wendy      0.58
 Xavier     0.58
-Yvonne     0.57
+Yvonne     0.58
 Zelda      0.58
 Name: x, Length: 26, dtype: float64
-</pre></div>
-</div>
+</pre></div></div>
 </div>
 </div>
 <div class="section" id="Persist-data-in-memory">
 <h2>Persist data in memory<a class="headerlink" href="#Persist-data-in-memory" title="Permalink to this headline">¶</a></h2>
-<p>If you have the available RAM for your dataset then you can persist data
-in memory.</p>
+<p>If you have the available RAM for your dataset then you can persist data in memory.</p>
 <p>This allows future computations to be much faster.</p>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [10]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[10]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -790,8 +927,7 @@ in memory.</p>
 <h2>Time Series Operations<a class="headerlink" href="#Time-Series-Operations" title="Permalink to this headline">¶</a></h2>
 <p>Because we have a datetime index time-series operations work efficiently</p>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [11]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -800,8 +936,7 @@ in memory.</p>
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [12]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[12]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -810,11 +945,10 @@ in memory.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[12]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[12]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div>
 <style scoped>
     .dataframe tbody tr th:only-of-type {
@@ -845,36 +979,35 @@ in memory.</p>
   <tbody>
     <tr>
       <th>2000-01-01 00:00:00</th>
-      <td>-1.18e-02</td>
-      <td>6.07e-04</td>
+      <td>-2.03e-03</td>
+      <td>2.79e-02</td>
     </tr>
     <tr>
       <th>2000-01-01 01:00:00</th>
-      <td>1.33e-03</td>
-      <td>-8.60e-03</td>
+      <td>2.00e-03</td>
+      <td>-3.43e-03</td>
     </tr>
     <tr>
       <th>2000-01-01 02:00:00</th>
-      <td>-4.58e-03</td>
-      <td>3.76e-03</td>
+      <td>6.42e-03</td>
+      <td>-1.08e-02</td>
     </tr>
     <tr>
       <th>2000-01-01 03:00:00</th>
-      <td>1.44e-02</td>
-      <td>3.88e-03</td>
+      <td>-5.30e-03</td>
+      <td>2.14e-02</td>
     </tr>
     <tr>
       <th>2000-01-01 04:00:00</th>
-      <td>-1.51e-03</td>
-      <td>4.55e-03</td>
+      <td>1.58e-02</td>
+      <td>1.09e-02</td>
     </tr>
   </tbody>
 </table>
 </div></div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [13]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[13]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -883,14 +1016,13 @@ in memory.</p>
 </div>
 </div>
 <div class="nboutput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[13]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[13]:
 </pre></div>
 </div>
-<div class="output_area highlight-none notranslate"><div class="highlight"><pre>
-<span></span>&lt;matplotlib.axes._subplots.AxesSubplot at 0x7fdee2b36ac8&gt;
-</pre></div>
-</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;AxesSubplot:xlabel=&#39;timestamp&#39;&gt;
+</pre></div></div>
 </div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
@@ -900,8 +1032,7 @@ in memory.</p>
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [14]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -910,11 +1041,10 @@ in memory.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[14]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div>
 <style scoped>
     .dataframe tbody tr th:only-of-type {
@@ -945,28 +1075,28 @@ in memory.</p>
   <tbody>
     <tr>
       <th>2000-01-01 00:00:00</th>
-      <td>0.02</td>
-      <td>0.52</td>
+      <td>0.69</td>
+      <td>-0.38</td>
     </tr>
     <tr>
       <th>2000-01-01 00:00:01</th>
-      <td>0.40</td>
-      <td>0.52</td>
+      <td>0.48</td>
+      <td>-0.11</td>
     </tr>
     <tr>
       <th>2000-01-01 00:00:02</th>
-      <td>0.03</td>
-      <td>0.19</td>
+      <td>0.09</td>
+      <td>-0.22</td>
     </tr>
     <tr>
       <th>2000-01-01 00:00:03</th>
-      <td>-0.22</td>
-      <td>0.05</td>
+      <td>0.03</td>
+      <td>-0.15</td>
     </tr>
     <tr>
       <th>2000-01-01 00:00:04</th>
-      <td>-0.04</td>
-      <td>0.02</td>
+      <td>-0.02</td>
+      <td>0.06</td>
     </tr>
   </tbody>
 </table>
@@ -974,8 +1104,7 @@ in memory.</p>
 </div>
 <p>Random access is cheap along the index, but must still be computed.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [15]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -984,11 +1113,10 @@ in memory.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[15]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div><strong>Dask DataFrame Structure:</strong></div>
 <div>
 <style scoped>
@@ -1042,8 +1170,7 @@ in memory.</p>
 <div>Dask Name: loc, 31 tasks</div></div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [16]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -1056,16 +1183,15 @@ in memory.</p>
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-CPU times: user 48 ms, sys: 8 ms, total: 56 ms
-Wall time: 79.5 ms
+CPU times: user 15.6 ms, sys: 12.1 ms, total: 27.8 ms
+Wall time: 44.6 ms
 </pre></div></div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[16]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div>
 <style scoped>
     .dataframe tbody tr th:only-of-type {
@@ -1100,38 +1226,38 @@ Wall time: 79.5 ms
   <tbody>
     <tr>
       <th>2000-01-05 00:00:00</th>
-      <td>1025</td>
-      <td>Wendy</td>
-      <td>0.06</td>
-      <td>-0.53</td>
+      <td>1021</td>
+      <td>Ursula</td>
+      <td>0.62</td>
+      <td>1.00</td>
     </tr>
     <tr>
       <th>2000-01-05 00:00:01</th>
-      <td>978</td>
-      <td>Kevin</td>
-      <td>-0.49</td>
-      <td>0.34</td>
+      <td>977</td>
+      <td>Ursula</td>
+      <td>-0.31</td>
+      <td>-0.70</td>
     </tr>
     <tr>
       <th>2000-01-05 00:00:02</th>
-      <td>990</td>
-      <td>Norbert</td>
+      <td>1039</td>
+      <td>Ursula</td>
       <td>0.92</td>
-      <td>-0.10</td>
+      <td>0.08</td>
     </tr>
     <tr>
       <th>2000-01-05 00:00:03</th>
-      <td>948</td>
-      <td>Alice</td>
-      <td>-0.93</td>
-      <td>0.63</td>
+      <td>1000</td>
+      <td>George</td>
+      <td>1.00</td>
+      <td>0.56</td>
     </tr>
     <tr>
       <th>2000-01-05 00:00:04</th>
-      <td>933</td>
-      <td>Oliver</td>
-      <td>-0.66</td>
-      <td>-0.16</td>
+      <td>989</td>
+      <td>Patricia</td>
+      <td>-0.71</td>
+      <td>0.52</td>
     </tr>
     <tr>
       <th>...</th>
@@ -1142,38 +1268,38 @@ Wall time: 79.5 ms
     </tr>
     <tr>
       <th>2000-01-05 23:59:55</th>
-      <td>975</td>
-      <td>Laura</td>
-      <td>-0.96</td>
-      <td>-0.94</td>
+      <td>1023</td>
+      <td>Ursula</td>
+      <td>-0.76</td>
+      <td>0.97</td>
     </tr>
     <tr>
       <th>2000-01-05 23:59:56</th>
-      <td>1009</td>
-      <td>Sarah</td>
-      <td>-0.37</td>
-      <td>0.73</td>
+      <td>1004</td>
+      <td>Dan</td>
+      <td>0.16</td>
+      <td>0.05</td>
     </tr>
     <tr>
       <th>2000-01-05 23:59:57</th>
-      <td>1035</td>
-      <td>Wendy</td>
-      <td>-0.61</td>
-      <td>-0.47</td>
+      <td>1025</td>
+      <td>Xavier</td>
+      <td>0.23</td>
+      <td>0.20</td>
     </tr>
     <tr>
       <th>2000-01-05 23:59:58</th>
-      <td>994</td>
-      <td>Yvonne</td>
-      <td>-0.77</td>
-      <td>-0.16</td>
+      <td>966</td>
+      <td>Norbert</td>
+      <td>0.65</td>
+      <td>-0.04</td>
     </tr>
     <tr>
       <th>2000-01-05 23:59:59</th>
-      <td>949</td>
-      <td>Patricia</td>
-      <td>-0.52</td>
-      <td>-0.65</td>
+      <td>946</td>
+      <td>Jerry</td>
+      <td>-0.68</td>
+      <td>0.63</td>
     </tr>
   </tbody>
 </table>
@@ -1183,13 +1309,9 @@ Wall time: 79.5 ms
 </div>
 <div class="section" id="Set-Index">
 <h2>Set Index<a class="headerlink" href="#Set-Index" title="Permalink to this headline">¶</a></h2>
-<p>Data is sorted by the index column. This allows for faster access,
-joins, groupby-apply operations, etc.. However sorting data can be
-costly to do in parallel, so setting the index is both important to do,
-but only infrequently.</p>
+<p>Data is sorted by the index column. This allows for faster access, joins, groupby-apply operations, etc.. However sorting data can be costly to do in parallel, so setting the index is both important to do, but only infrequently.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [17]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -1199,11 +1321,10 @@ but only infrequently.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[17]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div><strong>Dask DataFrame Structure:</strong></div>
 <div>
 <style scoped>
@@ -1268,13 +1389,11 @@ but only infrequently.</p>
   </tbody>
 </table>
 </div>
-<div>Dask Name: sort_index, 1200 tasks</div></div>
+<div>Dask Name: sort_index, 1140 tasks</div></div>
 </div>
-<p>Because computing this dataset is expensive and we can fit it in our
-available RAM, we persist the dataset to memory.</p>
+<p>Because computing this dataset is expensive and we can fit it in our available RAM, we persist the dataset to memory.</p>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [18]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[18]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -1282,11 +1401,9 @@ available RAM, we persist the dataset to memory.</p>
 </pre></div>
 </div>
 </div>
-<p>Dask now knows where all data lives, indexed cleanly by name. As a
-result oerations like random access are cheap and efficient</p>
+<p>Dask now knows where all data lives, indexed cleanly by name. As a result oerations like random access are cheap and efficient</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [19]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[19]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -1299,16 +1416,15 @@ result oerations like random access are cheap and efficient</p>
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-CPU times: user 1.07 s, sys: 64 ms, total: 1.13 s
-Wall time: 4.15 s
+CPU times: user 278 ms, sys: 23.8 ms, total: 302 ms
+Wall time: 3.63 s
 </pre></div></div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[19]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[19]:
 </pre></div>
 </div>
-<div class="output_area docutils container">
+<div class="output_area rendered_html docutils container">
 <div>
 <style scoped>
     .dataframe tbody tr th:only-of-type {
@@ -1341,33 +1457,33 @@ Wall time: 4.15 s
   <tbody>
     <tr>
       <th>Alice</th>
-      <td>950</td>
-      <td>-0.17</td>
-      <td>2.12e-01</td>
+      <td>1030</td>
+      <td>0.70</td>
+      <td>-0.73</td>
+    </tr>
+    <tr>
+      <th>Alice</th>
+      <td>985</td>
+      <td>0.35</td>
+      <td>-0.24</td>
+    </tr>
+    <tr>
+      <th>Alice</th>
+      <td>1015</td>
+      <td>-0.55</td>
+      <td>0.65</td>
     </tr>
     <tr>
       <th>Alice</th>
       <td>971</td>
-      <td>0.55</td>
-      <td>-6.29e-01</td>
+      <td>-0.14</td>
+      <td>-0.71</td>
     </tr>
     <tr>
       <th>Alice</th>
-      <td>941</td>
-      <td>-0.83</td>
-      <td>-1.25e-03</td>
-    </tr>
-    <tr>
-      <th>Alice</th>
-      <td>977</td>
-      <td>0.60</td>
-      <td>-9.93e-02</td>
-    </tr>
-    <tr>
-      <th>Alice</th>
-      <td>1028</td>
-      <td>-0.07</td>
-      <td>-9.48e-01</td>
+      <td>978</td>
+      <td>-0.42</td>
+      <td>-0.40</td>
     </tr>
     <tr>
       <th>...</th>
@@ -1377,53 +1493,50 @@ Wall time: 4.15 s
     </tr>
     <tr>
       <th>Alice</th>
-      <td>971</td>
-      <td>0.87</td>
-      <td>-3.71e-01</td>
-    </tr>
-    <tr>
-      <th>Alice</th>
-      <td>1010</td>
-      <td>0.30</td>
-      <td>7.36e-01</td>
-    </tr>
-    <tr>
-      <th>Alice</th>
-      <td>1023</td>
-      <td>0.85</td>
-      <td>8.85e-01</td>
-    </tr>
-    <tr>
-      <th>Alice</th>
       <td>986</td>
-      <td>0.90</td>
-      <td>-7.59e-01</td>
+      <td>-0.15</td>
+      <td>0.07</td>
     </tr>
     <tr>
       <th>Alice</th>
-      <td>938</td>
-      <td>0.69</td>
-      <td>7.73e-01</td>
+      <td>1006</td>
+      <td>-0.22</td>
+      <td>0.99</td>
+    </tr>
+    <tr>
+      <th>Alice</th>
+      <td>988</td>
+      <td>0.60</td>
+      <td>0.42</td>
+    </tr>
+    <tr>
+      <th>Alice</th>
+      <td>981</td>
+      <td>-0.40</td>
+      <td>-0.16</td>
+    </tr>
+    <tr>
+      <th>Alice</th>
+      <td>979</td>
+      <td>0.02</td>
+      <td>0.88</td>
     </tr>
   </tbody>
 </table>
-<p>99634 rows × 3 columns</p>
+<p>100055 rows × 3 columns</p>
 </div></div>
 </div>
 </div>
 <div class="section" id="Groupby-Apply-with-Scikit-Learn">
 <h2>Groupby Apply with Scikit-Learn<a class="headerlink" href="#Groupby-Apply-with-Scikit-Learn" title="Permalink to this headline">¶</a></h2>
-<p>Now that our data is sorted by name we can easily do operations like
-random access on name, or groupby-apply with custom functions.</p>
-<p>Here we train a different Scikit-Learn linear regression model on each
-name.</p>
+<p>Now that our data is sorted by name we can easily do operations like random access on name, or groupby-apply with custom functions.</p>
+<p>Here we train a different Scikit-Learn linear regression model on each name.</p>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [20]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[20]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
-<span></span><span class="kn">from</span>  <span class="nn">sklearn.linear_model</span> <span class="k">import</span> <span class="n">LinearRegression</span>
+<span></span><span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="n">LinearRegression</span>
 
 <span class="k">def</span> <span class="nf">train</span><span class="p">(</span><span class="n">partition</span><span class="p">):</span>
     <span class="n">est</span> <span class="o">=</span> <span class="n">LinearRegression</span><span class="p">()</span>
@@ -1433,8 +1546,7 @@ name.</p>
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [21]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[21]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
@@ -1443,68 +1555,71 @@ name.</p>
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>Out[21]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[21]:
 </pre></div>
 </div>
-<div class="output_area highlight-none notranslate"><div class="highlight"><pre>
-<span></span>name
-Alice      LinearRegression(copy_X=True, fit_intercept=Tr...
-Bob        LinearRegression(copy_X=True, fit_intercept=Tr...
-Charlie    LinearRegression(copy_X=True, fit_intercept=Tr...
-Dan        LinearRegression(copy_X=True, fit_intercept=Tr...
-Edith      LinearRegression(copy_X=True, fit_intercept=Tr...
-                                 ...
-Victor     LinearRegression(copy_X=True, fit_intercept=Tr...
-Wendy      LinearRegression(copy_X=True, fit_intercept=Tr...
-Xavier     LinearRegression(copy_X=True, fit_intercept=Tr...
-Yvonne     LinearRegression(copy_X=True, fit_intercept=Tr...
-Zelda      LinearRegression(copy_X=True, fit_intercept=Tr...
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+name
+Alice      LinearRegression()
+Bob        LinearRegression()
+Charlie    LinearRegression()
+Dan        LinearRegression()
+Edith      LinearRegression()
+                  ...
+Victor     LinearRegression()
+Wendy      LinearRegression()
+Xavier     LinearRegression()
+Yvonne     LinearRegression()
+Zelda      LinearRegression()
 Length: 26, dtype: object
-</pre></div>
+</pre></div></div>
 </div>
 </div>
-<div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre>
-<span></span>In [22]:
-</pre></div>
-</div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
-<span></span>
-</pre></div>
+<div class="section" id="Further-Reading">
+<h2>Further Reading<a class="headerlink" href="#Further-Reading" title="Permalink to this headline">¶</a></h2>
+<p>For a more in-depth introduction to Dask dataframes, see the <a class="reference external" href="https://github.com/dask/dask-tutorial">dask tutorial</a>, notebooks 04 and 07.</p>
 </div>
 </div>
-</div>
-</div>
+<!-- Google Analytics -->
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
 
+ga('create', 'UA-18218874-5', 'auto');
+ga('send', 'pageview');
+</script>
+<!-- End Google Analytics -->
 
            </div>
            
           </div>
           <footer>
-  
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      
-        <a href="delayed.html" class="btn btn-neutral float-right" title="Custom Workloads with Dask Delayed" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
-      
-      
-        <a href="array.html" class="btn btn-neutral" title="Dask Arrays" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
-      
+        <a href="delayed.html" class="btn btn-neutral float-right" title="Custom Workloads with Dask Delayed" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="bag.html" class="btn btn-neutral float-left" title="Dask Bags" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
-  
 
   <hr/>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018, Dask Developers.
+        &#169; Copyright 2018, Dask Developers.
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    
+    
+    
+    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
-
         </div>
       </div>
 
@@ -1513,34 +1628,16 @@ Length: 26, dtype: object
   </div>
   
 
-
-  
-
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'',
-            LANGUAGE:'None',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
-  
-
-  <script type="text/javascript" src="_static/js/theme.js"></script>
-
   <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>
